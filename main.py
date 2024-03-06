@@ -1,36 +1,66 @@
 import csv
+import logging
+import sys  # Import the sys module
+
+# Configure logging to display the time, log level, and message
+logging.basicConfig(level=logging.INFO, format='%(asctime)s: %(levelname)s: %(message)s')
 
 
-# Function to convert the original CSV to the Anki importable CSV
 def convert_csv_for_anki(input_csv_path, output_csv_path):
-    with open(input_csv_path, mode='r', encoding='utf-8') as infile, \
-            open(output_csv_path, mode='w', encoding='utf-8', newline='') as outfile:
+    try:
+        # Increase the maximum field size limit
+        maxInt = sys.maxsize
+        while True:
+            # Decrease the maxInt value by factor 10 as long as the OverflowError occurs.
+            try:
+                csv.field_size_limit(maxInt)
+                break
+            except OverflowError:
+                maxInt = int(maxInt / 10)
 
-        # Create a csv reader object from the input file (assuming tab-delimited)
-        reader = csv.reader(infile, delimiter='\t')
+        logging.info(f'Set CSV field size limit to: {maxInt}')
 
-        # Create a csv writer object for the output file
-        writer = csv.writer(outfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        # Open the input file in read mode and the output file in write mode
+        with open(input_csv_path, mode='r', encoding='utf-8') as infile, \
+                open(output_csv_path, mode='w', encoding='utf-8', newline='') as outfile:
 
-        # Read the header row
-        next(reader, None)
+            # Initialize a CSV reader that correctly handles comma-separated values
+            reader = csv.reader(infile, delimiter=',', quoting=csv.QUOTE_MINIMAL)
 
-        # Iterate over the rows in the provided CSV
-        for row in reader:
-            if len(row) < 3:  # Skip incomplete rows
-                continue
-            word, pos, definition = row[:3]
+            # Initialize a CSV writer that uses semicolon as the delimiter
+            writer = csv.writer(outfile, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
-            # Combine the POS and definition for the back of the card
-            card_back = f"{pos}\n{definition}" if pos else definition
+            # Attempt to read the header row, if present
+            headers = next(reader, None)
+            if headers is None:
+                logging.warning('Input file is empty or the header row is missing.')
+                return
 
-            # Write the word and the combined POS and definition to the output file
-            writer.writerow([word, card_back])
+            logging.info('Starting to process the CSV file.')
+
+            # Process each row in the input CSV
+            for row in reader:
+                if len(row) < 2:  # Check for at least two columns (word and definition)
+                    logging.warning(f'Skipped incomplete row: {row}')
+                    continue
+
+                # Combine all parts of the definition into a single string, if necessary
+                word = row[0]
+                definition = ' '.join(row[1:]).strip()
+
+                # Write the processed row to the output file
+                writer.writerow([word, definition])
+                logging.info(f'Processed word: {word}')
+
+            logging.info('Finished processing the CSV file.')
+
+    except Exception as e:
+        logging.exception(f'An error occurred while converting the CSV file: {e}')
 
 
-# File paths
-input_csv_path = 'english Dictionary.csv'  # TODO: replace with your actual input file path
-output_csv_path = 'anki-english-dict.csv'  # TODO: replace with your actual output file path
+# Paths for the input and output files
+input_csv_path = 'english Dictionary.csv'  # Replace with your actual input file path
+output_csv_path = 'anki-english-dict.csv'  # Replace with your actual output file path
 
-# Convert the CSV
+# Run the conversion function
 convert_csv_for_anki(input_csv_path, output_csv_path)
